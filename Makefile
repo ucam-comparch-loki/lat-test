@@ -13,7 +13,7 @@ build/%.o: src/%.c $(wildcard src/*.h) | build
 
 .PHONY: test
 test:
-	echo "make test not yet implemented"
+	python3 run_tests.py
 
 .PHONY: clean
 clean:
