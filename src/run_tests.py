@@ -62,6 +62,8 @@ if __name__ == "__main__":
         else:
             failed.append(" ".join(test.args))
 
+    # TODO: add a "Jenkins mode" which outputs an appropriately-formatted XML
+    # file. 
     print(f"Passed {len(passed)}, failed {len(failed)}")
 
     with open("passed.txt", mode="w") as f:

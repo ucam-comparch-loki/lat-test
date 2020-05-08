@@ -12,13 +12,14 @@ build/%.o: src/%.c $(wildcard src/*.h) | build
 	loki-clang -O3 -I$(LIBLOKI_DIR)/include -I$(LAT_IFC_DIR)/include -I$(LAT_NN_DIR)/include -c -Werror -Wall -o $@ $<
 
 .PHONY: test
-test:
-	python3 run_tests.py
+test: $(TARGET)
+	python3 src/run_tests.py
 
 .PHONY: clean
 clean:
 	rm -f $(wildcard $(TARGET) *.o)
 	rm -rf $(wildcard build)
+	rm -f passed.txt failed.txt
 
 build:
 	mkdir $@
