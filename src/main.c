@@ -17,12 +17,12 @@ activation_config_t* init_activations(data_t* data, int batch_size,
   activation_config_t* a = loki_malloc(sizeof(activation_config_t));
   assert(a != NULL);
 
-  a->memoryConfigEncoded = get_channel_map(1);
-  a->address = data;
-  a->rowSkip = sizeof(data_t);
-  a->columnSkip = width * a->rowSkip;
-  a->channelSkip = height * a->columnSkip;
-  a->batchSkip = channels * a->channelSkip;
+  a->data.memory_config = get_channel_map(1);
+  a->data.address = data;
+  a->row_stride = sizeof(data_t);
+  a->column_stride = width * a->row_stride;
+  a->channel_stride = height * a->column_stride;
+  a->batch_stride = channels * a->channel_stride;
 
   return a;
 }
@@ -35,12 +35,12 @@ filter_config_t* init_weights(data_t* data, int in_channels, int out_channels,
   filter_config_t* f = loki_malloc(sizeof(filter_config_t));
   assert(f != NULL);
 
-  f->memoryConfigEncoded = get_channel_map(1);
-  f->address = data;
-  f->rowSkip = sizeof(data_t);
-  f->columnSkip = filter_width * f->rowSkip;
-  f->inChannelSkip = filter_height * f->columnSkip;
-  f->outChannelSkip = in_channels * f->inChannelSkip;
+  f->data.memory_config = get_channel_map(1);
+  f->data.address = data;
+  f->row_stride = sizeof(data_t);
+  f->column_stride = filter_width * f->row_stride;
+  f->in_channel_stride = filter_height * f->column_stride;
+  f->out_channel_stride = in_channels * f->in_channel_stride;
 
   // TODO: groupSkip. Not used for anything in this test.
 
@@ -57,18 +57,19 @@ bool test_conv_empty() {
   activation_config_t* input = init_activations(dummy, 0, 0, 0, 0);
   filter_config_t* weights = init_weights(dummy, 0, 0, 0, 0);
   conv_shape_t conv = {
-    .batchSize = 0, .inChannels = 0, .outChannels = 0, .imageWidth = 0,
-    .imageHeight = 0, .filterWidth = 0, .filterHeight = 0, .groups = 1
+    .batch_size = 0, .in_channels = 0, .out_channels = 0, .image_width = 0,
+    .image_height = 0, .filter_width = 0, .filter_height = 0, .groups = 1,
+    .stride = 1, .dilation = 1
   };
 
   activation_config_t* output = init_activations(dummy, 2, 2, 2, 2);
 
-  lat_conv2d(input, weights, output, &conv, 1, 1);
+  lat_conv2d(input, weights, output, &conv, &LOOP_NEST_OUTPUT_STATIONARY);
 
   bool pass = true;
 
   for (int i=0; i<16; i++)
-    if (output->address[i] != i)
+    if (output->data.address[i] != i)
       pass = false;
 
   loki_free(input);
@@ -85,18 +86,19 @@ bool test_conv_no_weights() {
   activation_config_t* input = init_activations(dummy, 2, 2, 2, 2);
   filter_config_t* weights = init_weights(dummy, 0, 0, 0, 0);
   conv_shape_t conv = {
-    .batchSize = 2, .inChannels = 2, .outChannels = 0, .imageWidth = 2,
-    .imageHeight = 2, .filterWidth = 0, .filterHeight = 0, .groups = 1
+    .batch_size = 2, .in_channels = 2, .out_channels = 0, .image_width = 2,
+    .image_height = 2, .filter_width = 0, .filter_height = 0, .groups = 1,
+    .stride = 1, .dilation = 1
   };
 
   activation_config_t* output = init_activations(dummy, 2, 2, 2, 2);
 
-  lat_conv2d(input, weights, output, &conv, 1, 1);
+  lat_conv2d(input, weights, output, &conv, &LOOP_NEST_OUTPUT_STATIONARY);
 
   bool pass = true;
 
   for (int i=0; i<16; i++)
-    if (output->address[i] != i)
+    if (output->data.address[i] != i)
       pass = false;
 
   loki_free(input);
@@ -113,18 +115,19 @@ bool test_conv_no_activations() {
   activation_config_t* input = init_activations(dummy, 0, 0, 0, 0);
   filter_config_t* weights = init_weights(dummy, 2, 2, 2, 2);
   conv_shape_t conv = {
-    .batchSize = 0, .inChannels = 0, .outChannels = 2, .imageWidth = 0,
-    .imageHeight = 0, .filterWidth = 2, .filterHeight = 2, .groups = 1
+    .batch_size = 0, .in_channels = 0, .out_channels = 2, .image_width = 0,
+    .image_height = 0, .filter_width = 2, .filter_height = 2, .groups = 1,
+    .stride = 1, .dilation = 1
   };
 
   activation_config_t* output = init_activations(dummy, 2, 2, 2, 2);
 
-  lat_conv2d(input, weights, output, &conv, 1, 1);
+  lat_conv2d(input, weights, output, &conv, &LOOP_NEST_OUTPUT_STATIONARY);
 
   bool pass = true;
 
   for (int i=0; i<16; i++)
-    if (output->address[i] != i)
+    if (output->data.address[i] != i)
       pass = false;
 
   loki_free(input);
@@ -141,18 +144,19 @@ bool test_conv_no_batch() {
   activation_config_t* input = init_activations(dummy, 0, 1, 4, 4);
   filter_config_t* weights = init_weights(dummy, 4, 1, 2, 2);
   conv_shape_t conv = {
-    .batchSize = 0, .inChannels = 1, .outChannels = 4, .imageWidth = 4,
-    .imageHeight = 4, .filterWidth = 2, .filterHeight = 2, .groups = 1
+    .batch_size = 0, .in_channels = 1, .out_channels = 4, .image_width = 4,
+    .image_height = 4, .filter_width = 2, .filter_height = 2, .groups = 1,
+    .stride = 1, .dilation = 1
   };
 
   activation_config_t* output = init_activations(dummy, 0, 4, 3, 3);
 
-  lat_conv2d(input, weights, output, &conv, 1, 1);
+  lat_conv2d(input, weights, output, &conv, &LOOP_NEST_OUTPUT_STATIONARY);
 
   bool pass = true;
 
   for (int i=0; i<16; i++)
-    if (output->address[i] != i)
+    if (output->data.address[i] != i)
       pass = false;
 
   loki_free(input);
@@ -169,18 +173,19 @@ bool test_conv_no_in_channels() {
   activation_config_t* input = init_activations(dummy, 4, 0, 2, 2);
   filter_config_t* weights = init_weights(dummy, 2, 0, 2, 2);
   conv_shape_t conv = {
-    .batchSize = 4, .inChannels = 0, .outChannels = 2, .imageWidth = 2,
-    .imageHeight = 2, .filterWidth = 2, .filterHeight = 2, .groups = 1
+    .batch_size = 4, .in_channels = 0, .out_channels = 2, .image_width = 2,
+    .image_height = 2, .filter_width = 2, .filter_height = 2, .groups = 1,
+    .stride = 1, .dilation = 1
   };
 
   activation_config_t* output = init_activations(dummy, 4, 2, 1, 1);
 
-  lat_conv2d(input, weights, output, &conv, 1, 1);
+  lat_conv2d(input, weights, output, &conv, &LOOP_NEST_OUTPUT_STATIONARY);
 
   bool pass = true;
 
   for (int i=0; i<16; i++)
-    if (output->address[i] != i)
+    if (output->data.address[i] != i)
       pass = false;
 
   loki_free(input);
@@ -199,18 +204,19 @@ bool test_conv_no_out_channels() {
   activation_config_t* input = init_activations(dummy, 1, 4, 2, 2);
   filter_config_t* weights = init_weights(dummy, 0, 4, 2, 2);
   conv_shape_t conv = {
-    .batchSize = 1, .inChannels = 4, .outChannels = 0, .imageWidth = 2,
-    .imageHeight = 2, .filterWidth = 2, .filterHeight = 2, .groups = 1
+    .batch_size = 1, .in_channels = 4, .out_channels = 0, .image_width = 2,
+    .image_height = 2, .filter_width = 2, .filter_height = 2, .groups = 1,
+    .stride = 1, .dilation = 1
   };
 
   activation_config_t* output = init_activations(dummy, 1, 0, 1, 1);
 
-  lat_conv2d(input, weights, output, &conv, 1, 1);
+  lat_conv2d(input, weights, output, &conv, &LOOP_NEST_OUTPUT_STATIONARY);
 
   bool pass = true;
 
   for (int i=0; i<16; i++)
-    if (output->address[i] != i)
+    if (output->data.address[i] != i)
       pass = false;
 
   loki_free(input);
@@ -227,18 +233,19 @@ bool test_conv_no_width() {
   activation_config_t* input = init_activations(dummy, 2, 2, 4, 0);
   filter_config_t* weights = init_weights(dummy, 2, 2, 2, 2);
   conv_shape_t conv = {
-    .batchSize = 2, .inChannels = 2, .outChannels = 2, .imageWidth = 0,
-    .imageHeight = 4, .filterWidth = 2, .filterHeight = 2, .groups = 1
+    .batch_size = 2, .in_channels = 2, .out_channels = 2, .image_width = 0,
+    .image_height = 4, .filter_width = 2, .filter_height = 2, .groups = 1,
+    .stride = 1, .dilation = 1
   };
 
   activation_config_t* output = init_activations(dummy, 2, 2, 3, 0);
 
-  lat_conv2d(input, weights, output, &conv, 1, 1);
+  lat_conv2d(input, weights, output, &conv, &LOOP_NEST_OUTPUT_STATIONARY);
 
   bool pass = true;
 
   for (int i=0; i<16; i++)
-    if (output->address[i] != i)
+    if (output->data.address[i] != i)
       pass = false;
 
   loki_free(input);
@@ -255,18 +262,19 @@ bool test_conv_no_height() {
   activation_config_t* input = init_activations(dummy, 2, 2, 0, 4);
   filter_config_t* weights = init_weights(dummy, 2, 2, 2, 2);
   conv_shape_t conv = {
-    .batchSize = 2, .inChannels = 2, .outChannels = 2, .imageWidth = 4,
-    .imageHeight = 0, .filterWidth = 2, .filterHeight = 2, .groups = 1
+    .batch_size = 2, .in_channels = 2, .out_channels = 2, .image_width = 4,
+    .image_height = 0, .filter_width = 2, .filter_height = 2, .groups = 1,
+    .stride = 1, .dilation = 1
   };
 
   activation_config_t* output = init_activations(dummy, 2, 2, 0, 3);
 
-  lat_conv2d(input, weights, output, &conv, 1, 1);
+  lat_conv2d(input, weights, output, &conv, &LOOP_NEST_OUTPUT_STATIONARY);
 
   bool pass = true;
 
   for (int i=0; i<16; i++)
-    if (output->address[i] != i)
+    if (output->data.address[i] != i)
       pass = false;
 
   loki_free(input);
@@ -300,21 +308,23 @@ bool test_conv_1x1_small() {
   activation_config_t* input = init_activations(input_data, 1, 2, 2, 2);
   filter_config_t* weights = init_weights(weight_data, 2, 1, 1, 1);
   conv_shape_t conv = {
-    .batchSize = 1, .inChannels = 2, .outChannels = 1, .imageWidth = 2,
-    .imageHeight = 2, .filterWidth = 1, .filterHeight = 1, .groups = 1
+    .batch_size = 1, .in_channels = 2, .out_channels = 1, .image_width = 2,
+    .image_height = 2, .filter_width = 1, .filter_height = 1, .groups = 1,
+    .stride = 1, .dilation = 1
   };
 
-  activation_config_t* output = lat_conv2d_alloc(input, weights, &conv, 1, 1);
+  activation_config_t* output = lat_conv2d_alloc(input, weights, &conv,
+                                                 &LOOP_NEST_OUTPUT_STATIONARY);
 
   bool pass = true;
 
   for (int i=0; i<4; i++)
-    if (output->address[i] != expected[i])
+    if (output->data.address[i] != expected[i])
       pass = false;
 
   loki_free(input);
   loki_free(weights);
-  loki_free(output->address);
+  loki_free(output->data.address);
   loki_free(output);
 
   return pass;
@@ -364,21 +374,23 @@ bool test_conv_3x3_small() {
   activation_config_t* input = init_activations(input_data, 1, 2, 4, 4);
   filter_config_t* weights = init_weights(weight_data, 2, 2, 3, 3);
   conv_shape_t conv = {
-    .batchSize = 1, .inChannels = 2, .outChannels = 2, .imageWidth = 4,
-    .imageHeight = 4, .filterWidth = 3, .filterHeight = 3, .groups = 1
+    .batch_size = 1, .in_channels = 2, .out_channels = 2, .image_width = 4,
+    .image_height = 4, .filter_width = 3, .filter_height = 3, .groups = 1,
+    .stride = 1, .dilation = 1
   };
 
-  activation_config_t* output = lat_conv2d_alloc(input, weights, &conv, 1, 1);
+  activation_config_t* output = lat_conv2d_alloc(input, weights, &conv,
+                                                 &LOOP_NEST_OUTPUT_STATIONARY);
 
   bool pass = true;
 
   for (int i=0; i<8; i++)
-    if (output->address[i] != expected[i])
+    if (output->data.address[i] != expected[i])
       pass = false;
 
   loki_free(input);
   loki_free(weights);
-  loki_free(output->address);
+  loki_free(output->data.address);
   loki_free(output);
 
   return pass;
